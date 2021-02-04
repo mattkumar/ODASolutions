@@ -1,0 +1,567 @@
+---
+title: "Data Manipulation with R"
+subtitle: "ODA R Learning Series"
+author: "Matthew Kumar"
+institute: "Bayer"
+date: "December 4, 2020"
+output:
+  xaringan::moon_reader:
+    chakra: libs/remark-latest.min.js
+    seal: false
+    fig_caption: false
+    lib_dir: libs
+    css: ['assets/css/fc.css', 'assets/css/fc-fonts.css']
+    nature:
+      ratio: 16:9
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+
+```{r, include = F}
+knitr::opts_chunk$set(warning = F, comment = "", cache = F, message = F)
+
+#load dependencies
+
+#devtools::install_github("EvaMaeRey/flipbookr")
+library(flipbookr) 
+
+library(xaringan)
+library(flextable)
+library(tidyverse)
+library(lubridate)
+library(janitor)
+library(tidyr)
+library(ggdark)
+library(lubridate)
+library(readxl)
+
+#load example data sets
+set.seed(8083)
+
+adsl <- data.frame(SUBJIDN  = 1:200,
+                   SEX      = sample(c('M','F', NA), 200, replace = T, prob = c(.8,.15,.05)),
+                   AGE      = runif(200, min=18, max=65) %>% round(),
+                   TRTP     = sample(c('DRUG','PLACEBO'), 200, replace = T),
+                   SAFFL    = sample(c('Y','N', NA), 200, replace = T, prob = c(.9,.07,.03)),
+                   COUNTRY  = sample(c('USA','INDIA','EU','CHINA'), 200, replace = T),
+                   stringsAsFactors = F)
+
+
+set.seed(8083)
+
+visits <- data.frame(SUBJIDN   = sample(1:10, 30, replace = T),
+                     VISITDT   = Sys.Date() + runif(30, min=-365, max=0))
+
+set.seed(8083)
+
+adae <- data.frame(SUBJIDN = 1:5,
+                   AEACN_SUMMARY = c('DOSE MODIFIED;;DOSE NOT CHANGED;',
+                                     "DOSE REDUCED;DOSE REDUCED;DRUG WITHDRAWN;",
+                                     "NOT APPLICABLE;DOSE REDUCED;;",
+                                     ";;;",
+                                     "DRUG WITHDRAWN;;;"),
+                   stringsAsFactors = FALSE)
+```
+class: inverse, title-slide
+<div style= "float:right;position: relative; left: 30px; bottom: -450px;">
+```{r echo=FALSE, out.width="150px", fig.align='right'}
+knitr::include_graphics("assets/images/cross1.png") 
+```
+</div>
+<br>
+<br>
+<br>
+# Data Manipulation Exercise Solutions
+## ODA R Learning Series
+<br>
+### Matthew Kumar
+### Bayer
+### December 18, 2020
+
+---
+class: inverse, bullet
+
+# Resources
+
+1. Original presentation - https://r4oda.netlify.app/
+
+2. Exercises - https://r4oda-exercises.netlify.app/
+
+3. R-Studio Cheat Sheets - https://rstudio.com/resources/cheatsheets/
+
+4. Internal GitLab Repo - https://by-gitlab.de.bayer.cnb/GGDZN/r4oda-presentation
+
+---
+class: inverse, center, middle
+
+# Question 1
+
+---
+class: inverse, bullet2
+  
+# Pipe Operator, %>%
+```{r echo=FALSE}
+htmltools::img(src = knitr::image_uri("assets/images/pipehex.png"), 
+               alt = 'logo', 
+               style = 'position:absolute; top:0; right:0; padding:30px; width: 200px; height: 200px')
+```
+
+> What are some of the benefits of using it in your day to day work? 
+
+<br>
+--
+
+  - Makes translating how you **think** about programming into **actually** programming
+
+  - Code is easier to **read**, especially other peoples code 
+  
+  - Code is sometimes easier to **debug**
+<br>
+--
+<br>
+
+> Can you describe a scenario where it might *not* be immediately useful?
+
+<br>
+--
+
+  - Difficult for **non-linear** programming tasks
+  
+  - Multi-way derivations that have complex dependencies
+  
+  - Solution is break steps into a reasonable number of **intermediate objects**
+
+---
+class: inverse, center, middle
+
+# Dataset 1 Exercises
+
+---
+class: inverse
+
+# Dataset 1, Q1
+
+> Examine the structure of the code used to create adsl. In R, it’s useful to be able to simulate data on the fly in order to test a new package or function. 
+
+<br>
+
+> Type `?runif` and `?sample` at the prompt to learn about these functions
+
+<br>
+
+> Can you describe, **in words**, how the variables `AGE` and `SAFFL` are simulated? 
+
+---
+class: inverse, bullet
+
+# Dataset 1, Q1
+- `?runif`
+
+- generate random observations from the continuous uniform distribution
+
+- runif(**<span style="color:#00BCFF">n</span>, <span style="color:#89D329">min</span>, <span style="color:#FF3162">max</span>**)
+
+- for our example, `AGE = runif(200, min=18, max=65) %>% round()` translates to ...
+
+--
+  
+- generate <span style="color:#00BCFF">200</span> points that are uniformly distributed between <span style="color:#89D329">18</span> and <span style="color:#FF3162">65</span>
+  
+- round result to integer
+
+---
+`r chunk_reveal("qrunif",   widths = c(1,1), title = "### Demo of runif()")`
+
+```{r qrunif, eval = F, echo = F}
+# always set a seed
+set.seed(8083)
+
+# runif example
+runif(10000, min=18, max=65) %>%
+  round() %>%
+  hist(main = "Histogram Example")
+```
+---
+class: inverse, bullet
+
+# Dataset 1, Q1
+- `?sample`
+
+- generate random samples from an arbitrary categorical distribution
+
+- sample(<span style="color:#00BCFF">x</span>,  <span style="color:#89D329">size</span>,  <span style="color:#FF3162">replace</span>,  prob)
+  - <span style="color:#00BCFF">x</span> are the individual values we want to sample
+  - <span style="color:#89D329">size</span> is the number of points to be sampled
+  - <span style="color:#FF3162">replace</span> specifies to sampling with replacement
+  - prob is a probability distribution over the individual values
+  
+- for our example, `SAFFL = sample(c('Y','N', NA), 200, replace = T, prob = c(.9,.07,.03)` translates to ...
+
+--
+
+- generate <span style="color:#89D329">200</span> values of <span style="color:#00BCFF">{Y, N, NA}</span>, <span style="color:#FF3162">with replacement</span>, where <span style="color:#00BCFF">{Y, N, NA}</span> have probabilities of 90%, 7% and 3%, respectively.
+  
+---
+`r chunk_reveal("qrunif2",   widths = c(1,1), title = "### Demo of sample()")`
+
+```{r qrunif2, eval = F, echo = F}
+# sample example
+adsl %>%
+  count(SAFFL) %>%
+  mutate(pct = n / sum(n)) %>%
+    ggplot(aes(y = n, fill = SAFFL, x = 1)) +
+    theme_void() +
+    geom_bar(stat = "identity")
+```
+---
+`r chunk_reveal("rnorm",   widths = c(1,1), title = "### Demo of rnorm()")`
+
+```{r rnorm, eval = F, echo = F}
+# always set a seed
+set.seed(8083)
+
+# normal distribution sample of 100000
+norm_sample <- rnorm(100000, mean = 15, sd = 30)
+
+# summary
+mean(norm_sample)
+sd(norm_sample)
+
+# plot
+hist(norm_sample)
+
+```
+---
+class: inverse
+
+# Dataset 1: Q2
+
+> Write a select query that chooses all columns in adsl that start with S or end with Y.
+
+---
+
+`r chunk_reveal("d2", break_type = "rotate",  widths = c(1,1), title = "### Dataset 1: Q2")`
+
+```{r d2, eval = F, echo = F}
+# Base data
+colnames(adsl)
+
+
+# Solution
+adsl %>%
+  select(SUBJIDN, SEX, SAFFL, COUNTRY) #ROTATE
+  select(c(1,2,5,6)) #ROTATE
+  select(starts_with("S") | ends_with("Y")) #ROTATE
+
+```
+---
+class: inverse
+
+# Dataset 1: Q3
+
+> Use adsl to create a new data frame that consists of numeric variables only.
+
+---
+
+`r chunk_reveal("d3", break_type = "rotate",  widths = c(1,1), title = "### Dataset 1: Q3")`
+
+```{r d3, eval = F, echo = F}
+# Base data
+str(adsl)
+
+
+# Solution
+adsl %>%
+  select(SUBJIDN, AGE) #ROTATE
+  select(c(1,3)) #ROTATE
+  select(where(is.numeric)) #ROTATE
+
+```
+
+---
+class: inverse
+
+# Dataset 1: Q4
+
+> Learn about the `count()` function by typing `?count`
+
+> Use `count()` to compute the following:
+
+<br>
+
+> frequency of COUNTRY
+
+<br>
+
+> frequency of SEX
+
+<br>
+
+>cross-tabulation of COUNTRY and SEX (remove missing values first)
+
+---
+`r chunk_reveal("dplyr_select4",  widths = c(1,1), title = "### Dataset 1: Q4")`
+
+```{r dplyr_select4, eval = F, echo = F}
+adsl %>%
+  count(COUNTRY)
+
+
+
+adsl %>%
+  count(SEX)
+
+
+
+
+adsl %>%
+ filter(!is.na(SEX), !is.na(COUNTRY)) %>%
+ count(SEX, COUNTRY)
+
+```
+---
+class: inverse
+
+# Dataset 1: Q5
+
+> Compute the frequency of `SAFFL`
+
+<br>
+> Request frequencies to be sorted in highest to lowest
+
+<br>
+
+> Compute percentages for your frequencies. Multiply them by 100.
+
+---
+`r chunk_reveal("dplyr_select5a",  widths = c(1,1), title = "### Dataset 1: Q5")`
+
+```{r dplyr_select5a, eval = F, echo = F}
+# Counting and Sorting
+# Method 1
+adsl %>%
+  count(SAFFL) %>%
+  arrange(desc(n))
+
+# Method 2  
+adsl %>%  
+  count(SAFFL, sort = TRUE) 
+  
+```
+---
+`r chunk_reveal("dplyr_select5b",  break_type = "rotate", widths = c(1,1), title = "### Dataset 1: Q5")`
+
+```{r dplyr_select5b, eval = F, echo = F}
+# Computing Percents
+adsl %>%
+  count(SAFFL, sort = TRUE) %>%
+  mutate(pct = n / sum(n)) #ROTATE
+  mutate(pct = 100 * (n/sum(n))) #ROTATE
+```
+---
+class: inverse, center, middle
+
+# Dataset 2 Exercises
+
+---
+class: inverse
+
+# Dataset 2: Q1
+
+> What is the maximum number of visits across all subjects?
+
+---
+`r chunk_reveal("q21",   widths = c(1,1), title = "### Dataset 2: Q1")`
+
+```{r q21, eval = F, echo = F}
+# Preview first 10 records of Visits
+head(visits, n = 10)
+
+
+
+
+# Solution
+visits %>%
+    count(SUBJIDN, sort = TRUE)
+```
+---
+class: inverse
+
+# Dataset 2: Q2, Q3
+
+> What is the earliest visit date across all subjects? 
+
+<br>
+
+> What is the latest visit date across all subjects?
+
+---
+`r chunk_reveal("q223",   widths = c(1,1), title = "### Dataset 2: Q2, Q3")`
+
+```{r q223, eval = F, echo = F}
+# Solution
+visits %>%
+    arrange(VISITDT)
+```
+---
+class: inverse
+
+# Dataset 2: Q4
+
+> Create a data frame that keeps the earliest visit per subject Do this two ways:
+
+> Use a combination of `arrange` and `distinct` functions
+
+> Use the `slice` function 
+---
+`r chunk_reveal("q4a",   widths = c(1,1), title = "### Dataset 2: Q4, Arrange + Distinct")`
+
+```{r q4a, eval = F, echo = F}
+# Solution
+visits %>%
+    arrange(SUBJIDN, VISITDT) %>%
+    distinct(SUBJIDN, .keep_all = TRUE)
+```
+---
+`r chunk_reveal("q4b",   widths = c(1,1), title = "### Dataset 2: Q4, slice()")`
+
+```{r q4b, eval = F, echo = F}
+# Solution
+visits %>%
+    arrange(SUBJIDN, VISITDT) %>%
+    group_by(SUBJIDN) %>%
+     slice(1) %>%
+    ungroup()
+```
+---
+class: inverse
+
+# Dataset 2: Q5
+
+> Create a new column that represents the number of days between `2021-01-01` and the `earliest visit` date per subject.
+
+<br>
+
+> Hint: `as.Date('2021-01-01')` is similar to the SAS Date Constant `'01JAN2021'd`
+
+---
+
+`r chunk_reveal("q5",   widths = c(1,1), title = "### Dataset 2: Q5")`
+
+```{r q5, eval = F, echo = F}
+# Solution
+visits %>%
+  arrange(SUBJIDN, VISITDT) %>%
+  distinct(SUBJIDN, .keep_all=TRUE) %>%
+  mutate(diff_days = as.Date('2021-01-01') - VISITDT)
+```
+---
+
+class: inverse, center, middle
+
+# Dataset 3 Exercises
+
+---
+class: inverse
+
+# Dataset 3, Q1
+
+> AEACN_SUMMARY is a concatenated version of the original variables AEACN1, AEACN2, AEACN3. Re-create these variables using functions from the tidyr package. Your result data frame should have a total of 4 columns.
+
+---
+
+`r chunk_reveal("q31",   widths = c(1,1), title = "### Dataset 3, Q1")`
+
+```{r q31, eval = F, echo = F}
+# Base Data
+adae
+
+
+
+
+# Solution
+adae %>%
+      separate(AEACN_SUMMARY,
+               into = c('AEACN1','AEACN2','AEACN3'),
+               sep = ";")
+```
+---
+class: inverse
+
+# Dataset 3, Q2
+
+> Use `paste()` and the result of Q1 to create a new concatenated column named AEACN_SUMMARY2. Use `-` as a delimiter instead of `;`.
+
+---
+
+`r chunk_reveal("q32",   widths = c(1,1), title = "### Dataset 3, Q2")`
+
+```{r q32, eval = F, echo = F}
+# Base Data
+adae
+
+
+
+# Solution
+adae %>%
+      separate(AEACN_SUMMARY,
+               into = c('AEACN1','AEACN2','AEACN3'),
+               sep = ";") %>%
+      mutate(AEACN_SUMMARY2 = paste(AEACN1,AEACN2,AEACN3, sep='-'))
+
+```
+---
+class: inverse
+
+# Dataset 3, Q3
+
+> Filter the data frame you created in Q1 to keep subjects who eventually had the `DRUG WITHDRAWN`
+
+---
+
+`r chunk_reveal("q33",   widths = c(1,1), title = "### Dataset 3, Q3")`
+
+```{r q33, eval = F, echo = F}
+# Base Data
+adae
+
+
+
+# Solution
+adae %>%
+      separate(AEACN_SUMMARY,
+               into = c('AEACN1','AEACN2','AEACN3'),
+               sep = ";") %>%
+      filter(AEACN1 == "DRUG WITHDRAWN" | 
+             AEACN2 == "DRUG WITHDRAWN" | 
+             AEACN3 == "DRUG WITHDRAWN")
+```
+---
+class: inverse
+
+# Dataset 3, Q4
+
+> Reshape the data frame you created in Q1 into long format.
+
+---
+
+`r chunk_reveal("q34",   widths = c(1,1), title = "### Dataset 3, Q4")`
+
+```{r q34, eval = F, echo = F}
+# Base Data
+adae
+
+
+
+# Solution
+adae %>%
+      separate(AEACN_SUMMARY,
+               into = c('AEACN1','AEACN2','AEACN3'),
+               sep = ";") %>%
+      pivot_longer(cols = c("AEACN1", "AEACN2", "AEACN3"),
+                   names_to = "ACTION") 
+```
+---
+
+
